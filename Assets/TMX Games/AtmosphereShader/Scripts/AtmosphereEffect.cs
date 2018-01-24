@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityStandardAssets.ImageEffects;
 using System.Security.Cryptography;
+using UnityEngine.SocialPlatforms;
 
 [ExecuteInEditMode]
 [AddComponentMenu("TMX Games/Atmosphere")]
@@ -36,6 +37,12 @@ public class AtmosphereEffect : PostEffectsBase
 	[Space(10)]
 	public Vector4 SunPos = new Vector4(1000, 0, 0, 0);
 	public Vector4	PlanetPos = new Vector4(0, 0, 0, 0);
+
+	[Space(10)]
+	[Range(0f, 100f)]
+	public float SunIntensity = 10.0f;
+	[Range(0f, 10f)]
+	public float ScatteringCoefficient = 1.0f;
 
 	public override bool CheckResources ()
 	{
@@ -87,6 +94,9 @@ public class AtmosphereEffect : PostEffectsBase
 
 		atmosphereMaterial.SetVector("_SunPos", SunPos);
 		atmosphereMaterial.SetVector("_PlanetPos", PlanetPos);
+
+		atmosphereMaterial.SetFloat("_SunIntensity", SunIntensity);
+		atmosphereMaterial.SetFloat("_ScatteringCoefficient", ScatteringCoefficient);
 
 		if (Noise != null)
 		{

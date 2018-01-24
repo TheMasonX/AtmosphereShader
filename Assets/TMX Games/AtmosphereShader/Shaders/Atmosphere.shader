@@ -24,6 +24,10 @@
 		[Space(10)]
 		_SunPos ("SunPos", Vector) = (1000, 0, 0, 0) 
 		_PlanetPos ("PlanetPos", Vector) = (0, 0, 0, 0)
+
+		[Space(10)]
+		_SunIntensity ("Sun Intensity", Range(0.0, 100.0)) = 10.0
+		_ScatteringCoefficient ("Scattering Coefficient", Range(0.0, 100.0)) = 1.0
 	}
 
 	CGINCLUDE
@@ -52,11 +56,12 @@
 	float _DensityFalloff;
 
 	float _NoiseAmount;
-	float _NoiseTiling;
 
 	int _MaxSamples;
 
 	float4 _SunPos;
+	float _SunIntensity;
+	float _ScatteringCoefficient;
 	float4 _PlanetPos;
 
 	struct appdata_fog
@@ -93,6 +98,37 @@
 		return o;
 	}
 
+	bool rayIntersect
+	(
+		// Ray
+	 	float3 O, // Origin
+	 	float3 D, // Direction
+	 
+	 	// Sphere
+	 	float3 C, // Centre
+	 	float R, // Radius
+	 	out float AO, // First intersection time
+	 	out float BO  // Second intersection time
+	)
+	{
+		float3 L = C - O;
+		float DT = dot (L, D);
+		float R2 = R * R;
+
+		float CT2 = dot(L,L) - DT*DT;
+
+		// Intersection point outside the circle
+		if (CT2 > R2)
+		return false;
+
+		float AT = sqrt(R2 - CT2);
+		float BT = AT;
+
+		AO = DT - AT;
+		BO = DT + BT;
+		return true;
+	}
+
 	float ScatterAmount (float wavelength, float angle, float height)
 	{
 		
@@ -127,52 +163,85 @@
 		float rawDepth = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, UnityStereoTransformScreenSpaceTex(i.uv_depth));
 		float dpth = Linear01Depth(rawDepth);
 
-		float3 camOffset = _CameraWS.xyz - _PlanetPos.xyz;
-		float camHeight = length(camOffset);
-		float3 camOffsetDir = camOffset / camHeight;
+//		float3 camOffset = _CameraWS.xyz - _PlanetPos.xyz;
+//		float camHeight = length(camOffset);
+//		float3 camOffsetDir = camOffset / camHeight;
 		float3 sunDir = _SunPos.xyz - _CameraWS.xyz;
 
-		float4 wsDir;
+//		float4 wsDir;
+		float3 startPoint;
+		float3 endPoint;
 		float dist;
 
-		if(camHeight >= TotalHeight)
+		float i1;
+		float i2;
+		float3 ray = normalize(i.interpolatedRay.xyz);
+
+		bool intersect = rayIntersect(_CameraWS.xyz, ray, _PlanetPos.xyz, TotalHeight, i1, i2);
+		if(!intersect)
+			return sceneColor;
+
+		//inside the atmosphere
+		if(i1 < 0)
 		{
-			if(dpth >= .9999f)
-			{
-
-			}
-			else
-			{
-
-			}
+			startPoint = _CameraWS.xyz;
+			dist = i2;
 		}
 		else
 		{
-			//ray doesn't intersect the planet
-			if(dpth >= .9999f)
-			{
-				float4 normRay = normalize(i.interpolatedRay);
-				float viewDot = dot(-normRay.xyz, camOffsetDir);
-				float angle = acos(viewDot);
-				dist = ComputeDistanceInside(angle, camHeight);
-				wsDir = dist * normRay;
-			}
-			else
-			{
-				wsDir = dpth * i.interpolatedRay;
-				dist = length(wsDir);
-			}
+			startPoint = _CameraWS.xyz + ray * i1;
+			dist = i2 - i1;
 		}
-		float3 endPointPos = _CameraWS.xyz + wsDir.xyz;
+
+		//no intersections
+		if(dpth >= .9999f)
+		{
+			endPoint = startPoint + ray * dist;
+		}
+		else
+		{
+			endPoint = (dpth * i.interpolatedRay).xyz;
+			dist = length(endPoint - startPoint);
+		}
+
+//		if(camHeight >= TotalHeight)
+//		{
+//			if(dpth >= .9999f)
+//			{
+//
+//			}
+//			else
+//			{
+//
+//			}
+//		}
+//		else
+//		{
+//			//ray doesn't intersect the planet
+//			if(dpth >= .9999f)
+//			{
+//				float4 normRay = normalize(i.interpolatedRay);
+//				float viewDot = dot(-normRay.xyz, camOffsetDir);
+//				float angle = acos(viewDot);
+//				dist = ComputeDistanceInside(angle, camHeight);
+//				wsDir = dist * normRay;
+//			}
+//			else
+//			{
+//				wsDir = dpth * i.interpolatedRay;
+//				dist = length(wsDir);
+//			}
+//		}
+//		float3 endPointPos = _CameraWS.xyz + wsDir.xyz;
 //		dist -= _ProjectionParams.y;
 		
 
 		float samplePercent = dist / (TotalHeight * 1.5);
 		int samples = max(samplePercent * _MaxSamples, 1);
 
-		float3 jumpVector = (endPointPos - _CameraWS.xyz) / (samples + 1.0);
+		float3 jumpVector = (endPoint - startPoint) / (samples + 1.0);
 		float jumpDist = length(jumpVector);
-		float3 samplePoint = _CameraWS.xyz;
+		float3 samplePoint = startPoint;
 		float opticalDepth = 0.0;
 		for (int i = 0; i < samples; i++)
 		{
