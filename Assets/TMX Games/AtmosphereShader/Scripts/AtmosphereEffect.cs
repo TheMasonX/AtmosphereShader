@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityStandardAssets.ImageEffects;
+using System.Security.Cryptography;
 
 [ExecuteInEditMode]
 [AddComponentMenu("TMX Games/Atmosphere")]
@@ -19,10 +20,18 @@ public class AtmosphereEffect : PostEffectsBase
 	public float BaseHeight = 50f;
 	[Range(0f, 100f)]
 	public float Height = 50f;
-	[Range(0f, 0.1f)]
+	[Range(0f, 0.5f)]
 	public float Density = .01f;
-	[Range(0.01f, 5f)]
+	[Range(0.01f, 15f)]
 	public float DensityFalloff = 2f;
+
+	[Space(10)]
+	public Texture2D Noise;
+	[Range(0f, 2.0f)]
+	public float NoiseAmount = 0.1f;
+
+	[Range(1, 64)]
+	public int MaxSamples = 16;
 
 	[Space(10)]
 	public Vector4 SunPos = new Vector4(1000, 0, 0, 0);
@@ -73,10 +82,17 @@ public class AtmosphereEffect : PostEffectsBase
 		atmosphereMaterial.SetFloat("_Height", Height);
 		atmosphereMaterial.SetFloat("_Density", Density);
 		atmosphereMaterial.SetFloat("_DensityFalloff", DensityFalloff);
+		atmosphereMaterial.SetFloat("_NoiseAmount", NoiseAmount);
+		atmosphereMaterial.SetInt("_MaxSamples", MaxSamples);
 
 		atmosphereMaterial.SetVector("_SunPos", SunPos);
 		atmosphereMaterial.SetVector("_PlanetPos", PlanetPos);
 
+		if (Noise != null)
+		{
+			atmosphereMaterial.SetVector("_NoiseCoords", new Vector4(1f / Noise.width, 1f / Noise.height, 0f, 0f));
+			atmosphereMaterial.SetTexture("_Noise", Noise);
+		}
 
 		int pass = 0;
 		Graphics.Blit(source, destination, atmosphereMaterial, pass);
