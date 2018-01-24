@@ -21,6 +21,7 @@
 	CGINCLUDE
 
 	#include "UnityCG.cginc"
+	static float PI = 3.141592653589793238462;
 
 	sampler2D _MainTex;
 	uniform float4 _MainTex_TexelSize;
@@ -35,7 +36,7 @@
 
 	float _BaseHeight;
 	float _Height;
-	#define TotalHeight (_BaseHeight + _Height)
+//	#define TotalHeight (_BaseHeight + _Height)
 
 	float _Density;
 	float _DensityFalloff;
@@ -67,10 +68,10 @@
 		
 		#if UNITY_UV_STARTS_AT_TOP
 		if (_MainTex_TexelSize.y < 0)
-			o.uv.y = 1-o.uv.y;
+			o.uv.y = 1.0-o.uv.y;
 		#endif				
 		
-		int frustumIndex = v.texcoord.x + (2 * o.uv.y);
+		int frustumIndex = v.texcoord.x + (2.0 * o.uv.y);
 		o.interpolatedRay = _FrustumCornersWS[frustumIndex];
 		o.interpolatedRay.w = frustumIndex;
 		
@@ -81,17 +82,21 @@
 	half ComputeFogFactor (float coord)
 	{
 		float fogFac = 0.0;
-		fogFac = _Density * 1.2011224087f * coord;
-		fogFac = exp2(-fogFac*fogFac);
+
+		fogFac = _Density * 1.4426950408f * coord;
+		fogFac = exp2(-fogFac);
+
+//		fogFac = _Density * 1.2011224087f * coord;
+//		fogFac = exp2(-fogFac*fogFac);
 		return saturate(fogFac);
 	}
 
-	// Distance-based fog
-	float ComputeDistance (float3 camDir, float zdepth)
+	float ComputeDistanceInside (float angle, float height)
 	{
-		float dist = length(camDir);
-		dist -= _ProjectionParams.y;
-		return dist;
+		float TotalHeight = (_BaseHeight + _Height);
+//		float centerAngle = -(asin(height * sin(angle) / TotalHeight) + angle - PI);
+		float centerAngle = PI - (asin(height * sin(angle) / TotalHeight) + angle);
+		return sqrt(TotalHeight * TotalHeight + height * height - 2.0 * TotalHeight * height * cos(centerAngle)); 
 	}
 
 	half4 ComputeFog (v2f i) : SV_Target
@@ -102,24 +107,35 @@
 		// towards this screen pixel.
 		float rawDepth = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, UnityStereoTransformScreenSpaceTex(i.uv_depth));
 		float dpth = Linear01Depth(rawDepth);
+
+		float3 camOffset = _CameraWS.xyz - _PlanetPos.xyz;
+		float camHeight = length(camOffset);
+		float3 camOffsetDir = camOffset / camHeight;
+		float3 sunDir = _SunPos.xyz - _CameraWS.xyz;
+
+		float4 wsDir;
+		float dist;
+
 		//ray doesn't intersect the planet
 		if(dpth >= .9999f)
 		{
-			
+			float4 normRay = normalize(i.interpolatedRay);
+			float viewDot = dot(-normRay.xyz, camOffsetDir);
+			float angle = acos(viewDot);
+			dist = ComputeDistanceInside(angle, camHeight);
+			wsDir = dist * normRay;
 		}
-
-		float3 camOffset = _CameraWS.xyz - _PlanetPos;
-		float camHeight = length(camOffset);
-		float3 sunDir = _SunPos - _CameraWS.xyz;
-
-		float4 wsDir = dpth * i.interpolatedRay;
+		else
+		{
+			wsDir = dpth * i.interpolatedRay;
+			dist = length(wsDir);
+		}
 		float4 endPointPos = _CameraWS + wsDir;
-
-		// Compute fog distance
-		float g = ComputeDistance (wsDir, dpth);
+//		dist -= _ProjectionParams.y;
+		
 
 		// Compute fog amount
-		half fogFac = ComputeFogFactor (max(0.0,g));
+		half fogFac = ComputeFogFactor (max(0.0,dist));
 		
 		// Lerp between fog color & original scene color
 		// by fog amount

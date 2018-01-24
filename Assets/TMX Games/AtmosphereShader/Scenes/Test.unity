@@ -388,13 +388,13 @@ Transform:
   m_PrefabParentObject: {fileID: 0}
   m_PrefabInternal: {fileID: 0}
   m_GameObject: {fileID: 1647292792}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1, z: -10}
+  m_LocalRotation: {x: 0, y: -0.035074, z: 0, w: 0.99938476}
+  m_LocalPosition: {x: 0, y: 0, z: -15}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 0}
   m_RootOrder: 0
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: -4.02, z: 0}
 --- !u!114 &1647292797
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -408,9 +408,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   atmosphereShader: {fileID: 4800000, guid: 122559c24428d364f81dbddfc0bb34a2, type: 3}
   color: {r: 0.4, g: 0.4, b: 1, a: 1}
-  BaseHeight: 50
-  Height: 50
-  Density: 0.014
+  BaseHeight: 5
+  Height: 15
+  Density: 0.043
   DensityFalloff: 2
   SunPos: {x: 1000, y: 0, z: 0, w: 0}
   PlanetPos: {x: 0, y: 0, z: 0, w: 0}

@@ -4,12 +4,12 @@ using UnityEngine;
 using UnityStandardAssets.ImageEffects;
 
 [ExecuteInEditMode]
-[AddComponentMenu("Image Effects/Cinematic/Depth Of Field")]
+[AddComponentMenu("TMX Games/Atmosphere")]
 [RequireComponent(typeof(Camera))]
 public class AtmosphereEffect : PostEffectsBase
 {
 	public Shader atmosphereShader = null;
-	private Material atmosphereMaterial = null;
+	public Material atmosphereMaterial = null;
 
 	[Space(10)]
 	public Color color = new Color(0.4f, 0.4f, 1.0f, 1.0f);
@@ -34,11 +34,12 @@ public class AtmosphereEffect : PostEffectsBase
 
 		atmosphereMaterial = CheckShaderAndCreateMaterial (atmosphereShader, atmosphereMaterial);
 
-		if (!isSupported)
-			ReportAutoDisable ();
+//		if (!isSupported)
+//			ReportAutoDisable ();
 		return isSupported;
 	}
 
+	[ImageEffectAllowedInSceneView]
 	[ImageEffectOpaque]
 	void OnRenderImage(RenderTexture source, RenderTexture destination)
 	{
