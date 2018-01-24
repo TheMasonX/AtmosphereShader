@@ -13,6 +13,7 @@
 		_Height ("Height", Range(0.0, 100.0)) = 50
 		_Density ("Density", Range(0.0, 0.1)) = .01
 		_DensityFalloff ("Density Falloff", Range(0.01, 15.0)) = 2.0
+		_RayScaleFalloff ("Ray Scale Falloff", Range(0.01, 15.0)) = 2.0
 
 		[Space(10)]
 		_NoiseAmount ("Noise Amount", Range(0.0, 2.0)) = .05
@@ -20,6 +21,7 @@
 
 		[Space(10)]
 		_MaxSamples ("Max Samples", Range(1, 64)) = 16
+		_LightSamples ("Light Samples", Range(1, 64)) = 16
 
 		[Space(10)]
 		_SunPos ("SunPos", Vector) = (1000, 0, 0, 0) 
@@ -27,7 +29,7 @@
 
 		[Space(10)]
 		_SunIntensity ("Sun Intensity", Range(0.0, 100.0)) = 10.0
-		_ScatteringCoefficient ("Scattering Coefficient", Range(0.0, 100.0)) = 1.0
+		_ScatteringCoefficient ("Scattering Coefficient", Range(0.0, 1.0)) = 1.0
 	}
 
 	CGINCLUDE
@@ -54,10 +56,12 @@
 
 	float _Density;
 	float _DensityFalloff;
+	float _RayScaleFalloff;
 
 	float _NoiseAmount;
 
 	int _MaxSamples;
+	int _LightSamples;
 
 	float4 _SunPos;
 	float _SunIntensity;
@@ -129,6 +133,39 @@
 		return true;
 	}
 
+	bool lightSampling
+	(
+		float3 P, // Current point within the atmospheric sphere
+ 		float3 S, // Direction towards the sun
+ 		float noise,
+ 		out float opticalDepthCP
+ 	)
+	{
+		float _; // don't care about this one
+		float C;
+		rayIntersect(P, S, _PlanetPos.xyz, TotalHeight, _, C);
+
+		// Samples on the segment PC
+		float time = 0;
+		float ds = distance(P, P + S * C) / (float)(_LightSamples);
+		for (int i = 0; i < _LightSamples; i ++)
+		{
+			float3 Q = P + S * (time + ds*0.5 + noise);
+			float height = distance(_PlanetPos.xyz, Q) - _BaseHeight;
+			// Inside the planet
+			if (height < 0)
+				return false;
+
+			// Optical depth for the light ray
+			opticalDepthCP += exp(-height * _RayScaleFalloff) * ds;
+
+			time += ds;
+			noise *= 1.0;
+ 		}
+ 
+ return true;
+}
+
 	float ScatterAmount (float wavelength, float angle, float height)
 	{
 		
@@ -152,8 +189,6 @@
 	half4 ComputeFog (v2f i) : SV_Target
 	{
 		half4 sceneColor = tex2D(_MainTex, UnityStereoTransformScreenSpaceTex(i.uv));
-//		float2 noiseAnim = float2(_Time.x * 2.13251, _Time.x * -3.123213);
-//		float noise = tex2D(_Noise, (UnityStereoTransformScreenSpaceTex(i.uv) + noiseAnim) * _NoiseCoords.xy * _ScreenParams.xy).a;
 		float noise = tex2D(_Noise, UnityStereoTransformScreenSpaceTex(i.uv) * _NoiseCoords.xy * _ScreenParams.xy).a;
 		noise = mad(noise, 2.0, -1.0) * _NoiseAmount;
 
@@ -163,12 +198,8 @@
 		float rawDepth = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, UnityStereoTransformScreenSpaceTex(i.uv_depth));
 		float dpth = Linear01Depth(rawDepth);
 
-//		float3 camOffset = _CameraWS.xyz - _PlanetPos.xyz;
-//		float camHeight = length(camOffset);
-//		float3 camOffsetDir = camOffset / camHeight;
 		float3 sunDir = _SunPos.xyz - _CameraWS.xyz;
 
-//		float4 wsDir;
 		float3 startPoint;
 		float3 endPoint;
 		float dist;
@@ -204,60 +235,34 @@
 			dist = length(endPoint - startPoint);
 		}
 
-//		if(camHeight >= TotalHeight)
-//		{
-//			if(dpth >= .9999f)
-//			{
-//
-//			}
-//			else
-//			{
-//
-//			}
-//		}
-//		else
-//		{
-//			//ray doesn't intersect the planet
-//			if(dpth >= .9999f)
-//			{
-//				float4 normRay = normalize(i.interpolatedRay);
-//				float viewDot = dot(-normRay.xyz, camOffsetDir);
-//				float angle = acos(viewDot);
-//				dist = ComputeDistanceInside(angle, camHeight);
-//				wsDir = dist * normRay;
-//			}
-//			else
-//			{
-//				wsDir = dpth * i.interpolatedRay;
-//				dist = length(wsDir);
-//			}
-//		}
-//		float3 endPointPos = _CameraWS.xyz + wsDir.xyz;
-//		dist -= _ProjectionParams.y;
-		
-
 		float samplePercent = dist / (TotalHeight * 1.5);
 		int samples = max(samplePercent * _MaxSamples, 1);
 
 		float3 jumpVector = (endPoint - startPoint) / (samples + 1.0);
 		float jumpDist = length(jumpVector);
 		float3 samplePoint = startPoint;
-		float opticalDepth = 0.0;
+		float totalViewSamples = 0;
+		float opticalDepthPA = 0;
 		for (int i = 0; i < samples; i++)
 		{
 			samplePoint += jumpVector * (noise + 1.0);
-			opticalDepth += RaySample(samplePoint, jumpDist * (noise + 1.0));
+			float opticalDepthSegment = RaySample(samplePoint, jumpDist * (noise + 1.0));
 			noise *= -1.0;
+			opticalDepthPA += opticalDepthSegment;
+
+			float opticalDepthCP = 0;
+			bool overground = lightSampling(samplePoint, normalize(_SunPos.xyz - samplePoint), noise, opticalDepthCP);
+			if (overground)
+			{
+				 // Combined transmittance
+				 // T(CP) * T(PA) = T(CPA) = exp{ -β(λ) [D(CP) + D(PA)]}
+				 float transmittance = exp(-_ScatteringCoefficient * (opticalDepthCP + opticalDepthPA));
+				 totalViewSamples += transmittance * opticalDepthSegment;
+			}
 		}
 
-		opticalDepth = saturate(opticalDepth);
-
-		// Compute fog amount
-//		half fogFac = ComputeFogFactor (max(0.0,dist));
-		
-		// Lerp between fog color & original scene color
-		// by fog amount
-		return lerp (sceneColor, _Color, opticalDepth);
+		float I = _SunIntensity * _ScatteringCoefficient * totalViewSamples;
+		return lerp (sceneColor, _Color, I);
 	}
 
 ENDCG

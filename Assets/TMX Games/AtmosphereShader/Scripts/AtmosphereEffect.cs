@@ -25,14 +25,20 @@ public class AtmosphereEffect : PostEffectsBase
 	public float Density = .01f;
 	[Range(0.01f, 15f)]
 	public float DensityFalloff = 2f;
+	[Range(0.01f, 5f)]
+	public float RayScaleWrapping = 2f;
 
 	[Space(10)]
 	public Texture2D Noise;
 	[Range(0f, 2.0f)]
 	public float NoiseAmount = 0.1f;
 
+	[Space(10)]
 	[Range(1, 64)]
 	public int MaxSamples = 16;
+	[Range(1, 64)]
+	public int LightSamples = 16;
+
 
 	[Space(10)]
 	public Vector4 SunPos = new Vector4(1000, 0, 0, 0);
@@ -41,7 +47,7 @@ public class AtmosphereEffect : PostEffectsBase
 	[Space(10)]
 	[Range(0f, 100f)]
 	public float SunIntensity = 10.0f;
-	[Range(0f, 10f)]
+	[Range(0f, 1f)]
 	public float ScatteringCoefficient = 1.0f;
 
 	public override bool CheckResources ()
@@ -85,12 +91,18 @@ public class AtmosphereEffect : PostEffectsBase
 		atmosphereMaterial.SetMatrix("_FrustumCornersWS", frustumCornersArray);
 		atmosphereMaterial.SetVector("_CameraWS", camPos);
 
+
+		atmosphereMaterial.SetColor("_Color", color);
 		atmosphereMaterial.SetFloat("_BaseHeight", BaseHeight);
 		atmosphereMaterial.SetFloat("_Height", Height);
 		atmosphereMaterial.SetFloat("_Density", Density);
 		atmosphereMaterial.SetFloat("_DensityFalloff", DensityFalloff);
+		atmosphereMaterial.SetFloat("_RayScaleFalloff", RayScaleWrapping);
+
 		atmosphereMaterial.SetFloat("_NoiseAmount", NoiseAmount);
+
 		atmosphereMaterial.SetInt("_MaxSamples", MaxSamples);
+		atmosphereMaterial.SetInt("_LightSamples", LightSamples);
 
 		atmosphereMaterial.SetVector("_SunPos", SunPos);
 		atmosphereMaterial.SetVector("_PlanetPos", PlanetPos);
